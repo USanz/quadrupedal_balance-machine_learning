@@ -11,7 +11,7 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 #import matplotlib.pyplot as plt
-import csv
+#import csv
 
 from src.kinematic_model import robotKinematics
 from src.pybullet_debuger import pybulletDebug  
@@ -61,7 +61,7 @@ def robot_init( dt, body_pos, fixed = True , connect = p.GUI):
 #        print(joint_name,link_name)
 
     # start record video
-    p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
+    #p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
     rendering(1)
     
     
@@ -89,18 +89,17 @@ def move_joints(body_id , angles):
         
         
 def robot_stepsim( body_id, body_pos, body_orn, body2feet ):
-    #robot properties
+    angles, body2feet_ = robotKinematics.solve( body_orn, body_pos, body2feet)
+    move_joints(body_id, angles)
 
-    fr_index, fl_index, br_index, bl_index = 3, 7, 11, 15
-    
-    #####################################################################################
-    #####   kinematics Model: Input body orientation, deviation and foot position    ####
-    #####   and get the angles, neccesary to reach that position, for every joint    ####
-    angles , body2feet_ = robotKinematics.solve( body_orn , body_pos , body2feet )
-    move_joints(body_id , angles)
-    
-    return body2feet_
 
+def robot_stepsim_net(body_id, pos, orn, ang_in):
+    #entradas de la red (10): pos, orn, ang_in
+    #salidas de la red (12): angles
+    angles_out = net(pos, orn , ang_in)
+    move_joints(body_id , angles_out)
+
+    
 
 
 def robot_quit():
@@ -111,11 +110,14 @@ def robot_quit():
 
 
 ##This part of code is just to save the raw telemetry data.
+"""
 fieldnames = ["t","FR","FL","BR","BL"]
 with open('telemetry/data.csv','w') as csv_file:
     csv_writer = csv.DictWriter(csv_file,fieldnames = fieldnames)
     csv_writer.writeheader()
+"""
 
+"""
 def update_data():
     #take meassurement from simulation
     t , X = meassure.states()
@@ -129,13 +131,11 @@ def update_data():
                 "BR" : Ui[8,0],
                 "BL" : Ui[11,0]}
         csv_writer.writerow(info)
-        
-        
-        
-        
-        
-        
-        
+"""
+
+
+
+
 if __name__ == '__main__':
     dT = 0.002
     debugMode = "STATES"
@@ -162,36 +162,27 @@ if __name__ == '__main__':
  
     N_steps=5000000
     N_par = 8
-    out = np.zeros((N_par+1,N_steps))
 
     # start record video
     #p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
     for k_ in range(0,N_steps):
-    	#MAIN LOOP
+        #MAIN LOOP
         lastTime = time.time()
         
-        if debugMode == "STATES": 
-            pos , orn , L , Lrot , angle , T , sda = pybulletDebug.cam_and_robotstates(bodyId)
+        pos , orn , L , Lrot , angle , T , sda = pybulletDebug.cam_and_robotstates(bodyId)
+        
+        #print("pos,\torn,\tL,\tLrot,\tangle,\tT,\tsda")
+        #print(pos, "\t", orn, "\t", L, "\t", Lrot, "\t", angle, "\t", T, "\t", sda)
+        
+        bodytoFeet = trot.loop( L , angle , Lrot , T , offset , bodytoFeet0 , sda)
+        robot_stepsim( bodyId, pos, orn, bodytoFeet )
+        
+        #robot_stepsim_net(bodyId, pos , orn , angle) #our function
             
-            bodytoFeet = trot.loop( L , angle , Lrot , T , offset , bodytoFeet0 , sda)
-            robot_stepsim( bodyId, pos, orn, bodytoFeet )
-            
-            update_data()
-        """ 
-        elif debugMode == "CALIBRATION":
-            #No kinematic model needed for calibration
-            angles = pybulletDebug.cam_and_robotstates(bodyId)
-            move_joints(bodyId , angles)
-            time.sleep(0.01) #slow down the simulation the hard way
-	"""
-        # out[0,k_]=k_*dT
-        # out[1:4,k_]=bodytoFeet[0]
-        # out[4:7,k_]=bodytoFeet[1]
-        # out[7,k_]=L
-        # out[8,k_]=Lrot
-        # #import IPython;IPython.embed()
+        #update_data() # debug data
+        
         p.stepSimulation()
-#        print(time.time() - lastTime)
+        #print(time.time() - lastTime)
     robot_quit()
 
 
