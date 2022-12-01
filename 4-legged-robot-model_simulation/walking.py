@@ -10,6 +10,8 @@ import time
 import numpy as np
 import pybullet as p
 import pybullet_data
+import torch
+import pygad.torchga
 #import matplotlib.pyplot as plt
 #import csv
 
@@ -85,7 +87,14 @@ def move_joints(body_id , angles):
         p.setJointMotorControl2(body_id, 12 + i, p.POSITION_CONTROL, 
                                 targetPosition = angles[3,i] , force = maxForce)
         
-        
+def get_paws_poses(body_id):
+    angles = list()
+    for i in range(3):
+        angles.append(p.getJointState(body_id, i)[0])
+        angles.append(p.getJointState(body_id, i+4)[0])
+        angles.append(p.getJointState(body_id, i+8)[0])
+        angles.append(p.getJointState(body_id, i+12)[0])
+    return angles
         
         
 def robot_stepsim( body_id, body_pos, body_orn, body2feet ):
@@ -93,11 +102,6 @@ def robot_stepsim( body_id, body_pos, body_orn, body2feet ):
     move_joints(body_id, angles)
 
 
-def robot_stepsim_net(body_id, pos, orn, ang_in):
-    #entradas de la red (10): pos, orn, ang_in
-    #salidas de la red (12): angles
-    angles_out = net(pos, orn , ang_in)
-    move_joints(body_id , angles_out)
 
     
 
@@ -133,7 +137,72 @@ def update_data():
         csv_writer.writerow(info)
 """
 
+#"""
+def sim(solution, sol_idx):
+    dT = 0.002
+    debugMode = "STATES"
+    kneeConfig = "><"
+    robotKinematics = robotKinematics(kneeConfig) # "><" or "<<"
+    trot = trotGait()
+    
+    bodyId, jointIds = robot_init( dt = dT, body_pos = [0,0,0], fixed = False , connect = p.DIRECT)
+    # printear joints para ver cual es la del cuerpo.
+    pybulletDebug = pybulletDebug(debugMode)
+    meassure = systemStateEstimator(bodyId)
 
+    #initial foot position
+    #foot separation (Ydist = 0.16 -> tetta=0) and distance to floor
+    Xdist, Ydist, height = 0.18, 0.15, 0.10
+    #body frame to foot frame vector
+    bodytoFeet0 = np.matrix([[ Xdist/2. , -Ydist/2. , height],
+                            [ Xdist/2. ,  Ydist/2. , height],
+                            [-Xdist/2. , -Ydist/2. , height],
+                            [-Xdist/2. ,  Ydist/2. , height]])
+    
+
+    offset = np.array([0.5 , 0. , 0. , 0.5]) #defines the offset between each foot step in this order (FR,FL,BR,BL)
+    footFR_index, footFL_index, footBR_index, footBL_index = 3, 7, 11, 15
+    T = 0.5 #period of time (in seconds) of every step
+ 
+    N_steps=1000 # 1000 iter each 5 secs (aprox.
+    N_par = 8
+
+    # start record video
+    #p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
+
+    robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
+    robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
+    p.getJointInfo(bodyId, )
+    paws_angs = get_paws_poses(bodyId)
+    model_input = torch.tensor(robot_pos + robot_orn + paws_angs)
+    for k_ in range(0,N_steps):
+        print(k_)
+        #MAIN LOOP
+        #lastTime = time.time()
+        
+
+        model_out = pygad.torchga.predict(model=control_model,
+                            solution=solution,
+                            data=model_input)
+
+        #entradas de la red (18): robot_pos, robot_orn, paws_angs
+        #salidas de la red (12): paws_angs_out
+        move_joints(body_id, model_out)
+
+        robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
+        robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
+        paws_angs = get_paws_poses(bodyId)
+        model_input = torch.tensor(robot_pos + robot_orn + paws_angs)
+        #update_data() # debug data
+        
+        p.stepSimulation()
+        #print(time.time() - lastTime)
+    robot_quit()
+
+    score = 0
+    return score
+
+#"""
 
 
 if __name__ == '__main__':
@@ -144,6 +213,7 @@ if __name__ == '__main__':
     trot = trotGait()
     
     bodyId, jointIds = robot_init( dt = dT, body_pos = [0,0,0], fixed = False , connect = p.GUI)
+    # printear joints para ver cual es la del cuerpo.
     pybulletDebug = pybulletDebug(debugMode)
     meassure = systemStateEstimator(bodyId)
 
@@ -155,12 +225,13 @@ if __name__ == '__main__':
                             [ Xdist/2. ,  Ydist/2. , height],
                             [-Xdist/2. , -Ydist/2. , height],
                             [-Xdist/2. ,  Ydist/2. , height]])
+    
 
     offset = np.array([0.5 , 0. , 0. , 0.5]) #defines the offset between each foot step in this order (FR,FL,BR,BL)
     footFR_index, footFL_index, footBR_index, footBL_index = 3, 7, 11, 15
     T = 0.5 #period of time (in seconds) of every step
  
-    N_steps=5000000
+    N_steps=1000000 # 1000 iter each 5 secs (aprox.)
     N_par = 8
 
     # start record video
@@ -171,8 +242,13 @@ if __name__ == '__main__':
         
         pos , orn , L , Lrot , angle , T , sda = pybulletDebug.cam_and_robotstates(bodyId)
         
+
+
+        robot_pos = p.getLinkState(bodyId, 0)[0] #pos
+        robot_orn = p.getLinkState(bodyId, 0)[1] #orn
         #print("pos,\torn,\tL,\tLrot,\tangle,\tT,\tsda")
-        #print(pos, "\t", orn, "\t", L, "\t", Lrot, "\t", angle, "\t", T, "\t", sda)
+        #print(pos, "\t", orn, "\t")
+        print(get_paws_poses(bodyId))
         
         bodytoFeet = trot.loop( L , angle , Lrot , T , offset , bodytoFeet0 , sda)
         robot_stepsim( bodyId, pos, orn, bodytoFeet )
