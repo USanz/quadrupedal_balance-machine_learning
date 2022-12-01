@@ -141,13 +141,9 @@ def update_data():
 def sim(solution, sol_idx, control_model):
     dT = 0.002
     debugMode = "STATES"
-    kneeConfig = "><"
-    robotKinematics = robotKinematics(kneeConfig) # "><" or "<<"
-    trot = trotGait()
     
     bodyId, jointIds = robot_init( dt = dT, body_pos = [0,0,0], fixed = False , connect = p.DIRECT)
     # printear joints para ver cual es la del cuerpo.
-    pybulletDebug = pybulletDebug(debugMode)
     meassure = systemStateEstimator(bodyId)
 
     #initial foot position
@@ -172,7 +168,6 @@ def sim(solution, sol_idx, control_model):
 
     robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
     robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
-    p.getJointInfo(bodyId, )
     paws_angs = get_paws_poses(bodyId)
     model_input = torch.tensor(robot_pos + robot_orn + paws_angs)
     for k_ in range(0,N_steps):
@@ -187,7 +182,8 @@ def sim(solution, sol_idx, control_model):
 
         #entradas de la red (18): robot_pos, robot_orn, paws_angs
         #salidas de la red (12): paws_angs_out
-        move_joints(body_id, model_out)
+        print(model_out.tolist())
+        move_joints(bodyId, model_out.tolist())
 
         robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
         robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
