@@ -138,7 +138,7 @@ def update_data():
 """
 
 #"""
-def sim(solution, sol_idx):
+def sim(solution, sol_idx, control_model):
     dT = 0.002
     debugMode = "STATES"
     kneeConfig = "><"
