@@ -1,6 +1,7 @@
 import torch
 import pygad.torchga
 import pygad
+import sys
 
 from walking import sim
 
@@ -71,7 +72,10 @@ if __name__ == "__main__":
     #sim(solution, solution_idx, control_model, True)
     print("Solution is ", solution)
 
-    ga_instance.save(filename="./save_ga_instance.ga")
+    if len(sys.argv) == 2:
+        ga_instance.save(filename=sys.argv[1])
+    else:
+        ga_instance.save(filename="./save_ga_instance.ga")
 
     # # Make predictions based on the best solution.
     # predictions = pygad.torchga.predict(model=model,
