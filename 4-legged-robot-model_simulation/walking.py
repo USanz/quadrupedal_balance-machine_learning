@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Mar 15 19:51:40 2020
 
-@author: miguel-asd
-"""
 
+import sys
 import time
 import numpy as np
 import pybullet as p
@@ -234,6 +231,11 @@ def sim(solution, sol_idx, control_model, gui = False):
 
 
 if __name__ == '__main__':
+
+    saving = False
+    if len(sys.argv) >= 2 and sys.argv[1] == "--save":
+        saving = True
+
     dT = 0.002
     debugMode = "STATES"
     kneeConfig = "><"
@@ -264,24 +266,25 @@ if __name__ == '__main__':
 
     # start record video
     #p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
-
-    # pos = np.array([0,0,0])
-    # orn = np.array([0, 0 , 0])
-    # L = 0.3
-    # Lrot = 0.0
-    # angle = 0
-    # # T = 1.0
-    # sda = 0.0
+    if saving:
+        pos = np.array([0,0,0])
+        orn = np.array([0, 0 , 0])
+        L = 0.3
+        Lrot = 0.0
+        angle = 0
+        # T = 1.0
+        sda = 0.0
 
     # writers for the csv
-    # writer_input = csv.writer(open("input.csv", "w"))
-    # writer_output = csv.writer(open("output.csv", "w"))
+    if saving:
+        writer_input = csv.writer(open("input.csv", "w"))
+        writer_output = csv.writer(open("output.csv", "w"))
 
     for k_ in range(0,N_steps):
         #MAIN LOOP
         lastTime = time.time()
-        
-        pos , orn , L , Lrot , angle , T , sda = pybulletDebug.cam_and_robotstates(bodyId)
+        if not saving:
+            pos , orn , L , Lrot , angle , T , sda = pybulletDebug.cam_and_robotstates(bodyId)
         
 
 
@@ -290,7 +293,8 @@ if __name__ == '__main__':
         paws_poses = get_paws_poses(bodyId)
 
         # save input
-        # writer_input.writerow(robot_pos+robot_orn+paws_poses)
+        if saving:
+            writer_input.writerow(robot_pos+robot_orn+paws_poses)
 
         #print("pos,\torn,\tL,\tLrot,\tangle,\tT,\tsda")
         #print(pos, "\t", orn, "\t")
@@ -302,7 +306,8 @@ if __name__ == '__main__':
         
         #after robot_stepsim() angles_to_save should be updated  
         # save output
-        # writer_output.writerow(angles_to_save)
+        if saving:
+            writer_output.writerow(angles_to_save)
 
         #update_data() # debug data
         
