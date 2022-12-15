@@ -13,7 +13,7 @@ import pybullet_data
 import torch
 import pygad.torchga
 #import matplotlib.pyplot as plt
-#import csv
+import csv
 
 from src.kinematic_model import robotKinematics
 from src.pybullet_debuger import pybulletDebug  
@@ -72,18 +72,25 @@ def robot_init( dt, body_pos, fixed = True , connect = p.GUI):
     
     return body_id, joint_ids
 
+angles_to_save = []
 
 def original_move_joints(body_id , angles):
     maxForce = 2 #N/m
+    global angles_to_save
+    angles_to_save.clear()
     #move movable joints
     # print("Angles:", angles)
     for i in range(3):
+        angles_to_save.append(angles[0,i])
         p.setJointMotorControl2(body_id, i, p.POSITION_CONTROL, 
                                 targetPosition = angles[0,i] , force = maxForce)
+        angles_to_save.append(angles[1,i])
         p.setJointMotorControl2(body_id, 4 + i, p.POSITION_CONTROL, 
                                 targetPosition = angles[1,i] , force = maxForce)
+        angles_to_save.append(angles[2,i])
         p.setJointMotorControl2(body_id, 8 + i, p.POSITION_CONTROL, 
                                 targetPosition = angles[2,i] , force = maxForce) 
+        angles_to_save.append(angles[3,i])
         p.setJointMotorControl2(body_id, 12 + i, p.POSITION_CONTROL, 
                                 targetPosition = angles[3,i] , force = maxForce)
 
@@ -185,27 +192,27 @@ def sim(solution, sol_idx, control_model, gui = False):
     robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
     robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
     paws_angs = get_paws_poses(bodyId)
-    model_input = torch.tensor(robot_pos + robot_orn + paws_angs)
+    model_input = torch.tensor([robot_pos + robot_orn + paws_angs], device='cpu')
+    # print(model_input.shape)
+    # print(model_input.T.shape)
     score = 0
     for k_ in range(0,N_steps):
-        print(k_)
+        #print(k_)
         #MAIN LOOP
         #lastTime = time.time()
         
 
-        model_out = pygad.torchga.predict(model=control_model,
-                            solution=solution,
-                            data=model_input)
+        model_out = control_model.forward(model_input)
 
         # entradas de la red (18): robot_pos, robot_orn, paws_angs
         # salidas de la red (12): paws_angs_out
         # print(model_out.tolist())
-        move_joints(bodyId, model_out.tolist())
+        move_joints(bodyId, model_out.tolist()[0])
 
         robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
         robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
         paws_angs = get_paws_poses(bodyId)
-        model_input = torch.tensor(robot_pos + robot_orn + paws_angs)
+        model_input = torch.tensor([robot_pos + robot_orn + paws_angs], device = 'cpu')
         #update_data() # debug data
         p.stepSimulation()
         #print(time.time() - lastTime)
@@ -218,7 +225,7 @@ def sim(solution, sol_idx, control_model, gui = False):
             score += 999999999
         else:
             score += 1 / den
-        
+    print(".", end="", flush=True) 
     robot_quit()
 
     return score
@@ -252,11 +259,24 @@ if __name__ == '__main__':
     footFR_index, footFL_index, footBR_index, footBL_index = 3, 7, 11, 15
     T = 0.5 #period of time (in seconds) of every step
  
-    N_steps=1000000 # 1000 iter each 5 secs (aprox.)
+    N_steps=10000 # 1000 iter each 5 secs (aprox.)
     N_par = 8
 
     # start record video
     #p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
+
+    # pos = np.array([0,0,0])
+    # orn = np.array([0, 0 , 0])
+    # L = 0.3
+    # Lrot = 0.0
+    # angle = 0
+    # # T = 1.0
+    # sda = 0.0
+
+    # writers for the csv
+    # writer_input = csv.writer(open("input.csv", "w"))
+    # writer_output = csv.writer(open("output.csv", "w"))
+
     for k_ in range(0,N_steps):
         #MAIN LOOP
         lastTime = time.time()
@@ -266,16 +286,24 @@ if __name__ == '__main__':
 
 
         robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
-        robot_orn = p.getLinkState(bodyId, 0)[1] #orn
+        robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
+        paws_poses = get_paws_poses(bodyId)
+
+        # save input
+        # writer_input.writerow(robot_pos+robot_orn+paws_poses)
+
         #print("pos,\torn,\tL,\tLrot,\tangle,\tT,\tsda")
         #print(pos, "\t", orn, "\t")
         #print(robot_pos[2])
-        print(list(p.getLinkState(bodyId, 0, computeLinkVelocity = True)[6]))
+        #print(list(p.getLinkState(bodyId, 0, computeLinkVelocity = True)[6]))
         bodytoFeet = trot.loop( L , angle , Lrot , T , offset , bodytoFeet0 , sda)
+
         robot_stepsim( bodyId, pos, orn, bodytoFeet )
         
-        #robot_stepsim_net(bodyId, pos , orn , angle) #our function
-            
+        #after robot_stepsim() angles_to_save should be updated  
+        # save output
+        # writer_output.writerow(angles_to_save)
+
         #update_data() # debug data
         
         p.stepSimulation()
