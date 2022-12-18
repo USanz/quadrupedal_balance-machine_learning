@@ -227,6 +227,72 @@ def sim(solution, sol_idx, control_model, gui = False):
 
     return score
 
+
+def supervised_sim(control_model, n = 1000, gui = False):
+
+    dT = 0.002
+    debugMode = "STATES"
+    
+    bodyId, jointIds = robot_init( dt = dT, body_pos = [0,0,0.13], fixed = False , connect = p.DIRECT if not gui else p.GUI)
+    # printear joints para ver cual es la del cuerpo.
+    meassure = systemStateEstimator(bodyId)
+
+    #initial foot position
+    #foot separation (Ydist = 0.16 -> tetta=0) and distance to floor
+    Xdist, Ydist, height = 0.18, 0.15, 0.10
+    #body frame to foot frame vector
+    bodytoFeet0 = np.matrix([[ Xdist/2. , -Ydist/2. , height],
+                            [ Xdist/2. ,  Ydist/2. , height],
+                            [-Xdist/2. , -Ydist/2. , height],
+                            [-Xdist/2. ,  Ydist/2. , height]])
+    
+
+    offset = np.array([0.5 , 0. , 0. , 0.5]) #defines the offset between each foot step in this order (FR,FL,BR,BL)
+    footFR_index, footFL_index, footBR_index, footBL_index = 3, 7, 11, 15
+    T = 0.5 #period of time (in seconds) of every step
+ 
+    N_steps=n # 1000 iter each 5 secs (aprox.
+    N_par = 8
+
+    # start record video
+    if gui:
+        p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "robot.mp4")
+
+    robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
+    robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
+    paws_angs = get_paws_poses(bodyId)
+    model_input = torch.tensor([robot_pos + robot_orn + paws_angs], device='cpu')
+    # print(model_input.shape)
+    # print(model_input.T.shape)
+    score = 0
+    for k_ in range(0,N_steps):
+        #print(k_)
+        #MAIN LOOP
+        #lastTime = time.time()
+        
+
+        model_out = control_model.forward(model_input)
+
+        # entradas de la red (18): robot_pos, robot_orn, paws_angs
+        # salidas de la red (12): paws_angs_out
+        # print(model_out.tolist())
+        move_joints(bodyId, model_out.tolist()[0])
+
+        robot_pos = list(p.getLinkState(bodyId, 0)[0]) #pos
+        robot_orn = list(p.getLinkState(bodyId, 0)[1]) #orn
+        paws_angs = get_paws_poses(bodyId)
+        model_input = torch.tensor([robot_pos + robot_orn + paws_angs], device = 'cpu')
+        #update_data() # debug data
+        p.stepSimulation()
+        #print(time.time() - lastTime)
+
+        vel_vec = list(p.getLinkState(bodyId, 0, computeLinkVelocity = True)[6])
+
+
+    robot_quit()
+
+    return
+
 #"""
 
 

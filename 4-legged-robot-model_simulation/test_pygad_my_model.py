@@ -18,11 +18,11 @@ class ControlNet(torch.nn.Module):
             torch.nn.Linear(10, 10),
             torch.nn.ReLU(),
             torch.nn.Linear(10,12)
-        ).to(device='cpu')
+        ).to("cuda")
     def forward(self, x):
         #x = self.flatten(x)
         # print(self.linear_relu_stack)
-        logits = self.linear_relu_stack(x)
+        logits = self.linear_relu_stack(x).to("cuda")
         return logits
         
 
