@@ -233,8 +233,16 @@ def sim(solution, sol_idx, control_model, gui = False):
 if __name__ == '__main__':
 
     saving = False
+    k = 0
+    name = ""
     if len(sys.argv) >= 2 and sys.argv[1] == "--save":
         saving = True
+        if len(sys.argv) == 3:
+            k = int(sys.argv[2])
+        if len(sys.argv) == 4:
+            k = int(sys.argv[2])
+            name = sys.argv[3]
+
 
     dT = 0.002
     debugMode = "STATES"
@@ -260,8 +268,10 @@ if __name__ == '__main__':
     offset = np.array([0.5 , 0. , 0. , 0.5]) #defines the offset between each foot step in this order (FR,FL,BR,BL)
     footFR_index, footFL_index, footBR_index, footBL_index = 3, 7, 11, 15
     T = 0.5 #period of time (in seconds) of every step
- 
-    N_steps=10000 # 1000 iter each 5 secs (aprox.)
+    if k != 0:
+        N_steps = k
+    else:
+        N_steps=10000 # 1000 iter each 5 secs (aprox.)
     N_par = 8
 
     # start record video
@@ -277,8 +287,8 @@ if __name__ == '__main__':
 
     # writers for the csv
     if saving:
-        writer_input = csv.writer(open("input.csv", "w"))
-        writer_output = csv.writer(open("output.csv", "w"))
+        writer_input = csv.writer(open(name + "input.csv", "w"))
+        writer_output = csv.writer(open(name + "output.csv", "w"))
 
     for k_ in range(0,N_steps):
         #MAIN LOOP
